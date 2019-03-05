@@ -2,11 +2,13 @@ language: c
 os: linux
 
 matrix:
+  include:
   - compiler: clang
     script:
-      - clang-format -i filet.c && git diff --exit-code || { git reset --hard; false; }
-  - compiler:
-    - clang
-    - gcc
+      - make
+  - compiler: gcc
     script:
       - make
+  - compiler: clang
+    script:
+      - clang-format -i filet.c && git diff --exit-code
