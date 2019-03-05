@@ -19,6 +19,24 @@ f() {
 
 If you want to open files, you need to set `FILET_OPENER` to something like `xdg-open`.
 
+## Installation
+
+You can install filet from the following repositories:
+
+| Repo    | Name      |
+|---------|-----------|
+| AUR     | filet-git |
+| nixpkgs | filet     |
+
+### Manually
+
+Building filet yourself is pretty straight forward.
+
+1. Install 0 dependencies
+2. `make`
+
+To install it you can use `make install`.
+
 ## Why?
 
 ```
