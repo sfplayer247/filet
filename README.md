@@ -17,7 +17,7 @@ f() {
 }
 ```
 
-If you want to open files, you need to set `FILET_OPENER` to something like `xdg-open`.
+You can set `FILET_OPENER` to a program to open files with. This defaults to `xdg-open`.
 
 ## Installation
 

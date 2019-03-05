@@ -461,7 +461,7 @@ main(int argc, char **argv)
     const char *editor = getenv_or("EDITOR", "vi");
     const char *shell  = getenv_or("SHELL", "/bin/sh");
     const char *home   = getenv_or("HOME", "/");
-    const char *opener = getenv("FILET_OPENER");
+    const char *opener = getenv_or("FILET_OPENER", "xdg-open");
 
     struct passwd *pwuid = getpwuid(geteuid());
     if (!pwuid) {
