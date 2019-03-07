@@ -31,6 +31,10 @@
 #define UNUSED(x) UNUSED_##x
 #endif /* __GNUC__ */
 
+#ifndef HOST_NAME_MAX
+#define HOST_NAME_MAX 256
+#endif /* HOST_NAME_MAX */
+
 #define ENT_ALLOC_NUM 64
 
 struct direlement {
