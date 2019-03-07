@@ -26,9 +26,9 @@
 #include <unistd.h>
 
 #ifdef __GNUC__
-# define UNUSED(x) UNUSED_ ## x __attribute__((__unused__))
+#define UNUSED(x) UNUSED_##x __attribute__((__unused__))
 #else
-# define UNUSED(x) UNUSED_ ## x
+#define UNUSED(x) UNUSED_##x
 #endif /* __GNUC__ */
 
 #define ENT_ALLOC_NUM 64
