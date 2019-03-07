@@ -314,6 +314,21 @@ spawn(const char *path, const char *cmd, const char *argv1, int row)
 }
 
 /**
+ * Gets the parent dir of a given path (without trailing /) and writes it back
+ */
+static void
+parent_dir(char *path)
+{
+    if (path[1] != '\0') {
+        char *end = strrchr(path, '/');
+        if (path == end) {
+            ++end;
+        }
+        *end = '\0';
+    }
+}
+
+/**
  * Draws a single directory entry in it's own line
  *
  * Assumes the cursor is at the beginning of the line
@@ -588,7 +603,7 @@ main(int argc, char **argv)
 
         switch (k) {
         case 'h':
-            dirname(path);
+            parent_dir(path);
             fetch_dir = true;
             break;
         case '~':
