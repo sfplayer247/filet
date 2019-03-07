@@ -25,6 +25,12 @@
 #include <termios.h>
 #include <unistd.h>
 
+#ifdef __GNUC__
+# define UNUSED(x) UNUSED_ ## x __attribute__((__unused__))
+#else
+# define UNUSED(x) UNUSED_ ## x
+#endif /* __GNUC__ */
+
 #define ENT_ALLOC_NUM 64
 
 struct direlement {
@@ -50,9 +56,9 @@ static volatile sig_atomic_t g_quit         = false;
 static int
 delete_file(
     const char *fpath,
-    const struct stat *sb,
-    int typeflag,
-    struct FTW *ftwbuf)
+    const struct stat *UNUSED(sb),
+    int UNUSED(typeflag),
+    struct FTW *UNUSED(ftwbuf))
 {
     return remove(fpath);
 }
@@ -111,7 +117,7 @@ get_term_size(int *row, int *col)
  * Used as SIGWINCH (terminal resize handler)
  */
 static void
-handle_winch(int sig)
+handle_winch(int UNUSED(sig))
 {
     g_needs_redraw = true;
 }
@@ -120,7 +126,7 @@ handle_winch(int sig)
  * Used for SIGINT and SIGTERM to pass the exit signal to main()
  */
 static void
-handle_exit(int sig)
+handle_exit(int UNUSED(sig))
 {
     g_quit = true;
 }
