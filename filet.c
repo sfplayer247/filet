@@ -358,7 +358,7 @@ draw_line(const struct direlement *ent, bool is_sel)
         printf("\033[32;1m");
         break;
     case TYPE_NORM:
-        printf("\033[0m");
+        printf("\033[m");
         break;
     }
 
@@ -387,13 +387,13 @@ redraw(
 {
     // clear screen and redraw status
     printf(
-        "\033[2J"       // clear screen
-        "\033[H"        // go to 0,0
-        "%s"            // print username@hostname
-        "\033[34;1m%s"  // print path
-        " \033[0m[%zu]" // number of entries
-        "\033[3;%dr"    // limit scrolling to scrolling area
-        "\r\n",         // enter scrolling region
+        "\033[2J"      // clear screen
+        "\033[H"       // go to 0,0
+        "%s"           // print username@hostname
+        "\033[34;1m%s" // print path
+        " \033[m[%zu]" // number of entries
+        "\033[3;%dr"   // limit scrolling to scrolling area
+        "\r\n",        // enter scrolling region
         user_and_hostname,
         path,
         n,
@@ -547,7 +547,7 @@ main(int argc, char **argv)
     atexit(restore_terminal);
 
     size_t user_and_host_size =
-        strlen(user) + strlen(hostname) + strlen("\033[32;1m@\033[0m:") + 1;
+        strlen(user) + strlen(hostname) + strlen("\033[32;1m@\033[m:") + 1;
     char *user_and_hostname = malloc(user_and_host_size);
     ;
     if (!user_and_hostname) {
@@ -559,15 +559,12 @@ main(int argc, char **argv)
         snprintf(
             user_and_hostname,
             user_and_host_size,
-            "\033[32;1m%s@%s\033[0m:",
+            "\033[32;1m%s@%s\033[m:",
             user,
             hostname);
     } else {
         snprintf(
-            user_and_hostname,
-            user_and_host_size,
-            "\033[32;1m%s\033[0m:",
-            user);
+            user_and_hostname, user_and_host_size, "\033[32;1m%s\033[m:", user);
     }
 
     bool show_hidden = false;
