@@ -35,6 +35,10 @@
 #define HOST_NAME_MAX 256
 #endif /* HOST_NAME_MAX */
 
+#ifndef SIGWINCH
+#define SIGWINCH 28
+#endif /* SIGWINCH */
+
 #define ENT_ALLOC_NUM 64
 
 struct direlement {
