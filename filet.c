@@ -5,6 +5,7 @@
  * You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
+#include <ctype.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -85,6 +86,43 @@ getenv_or(const char *name, const char *fallback)
 }
 
 /**
+ * Natural compare function respecting numbers, instead of just checking digits
+ */
+static int
+strnatcmp(const char *s1, const char *s2)
+{
+    for (;;) {
+        if (*s2 == '\0') {
+            return *s1 != '\0';
+        }
+
+        if (*s1 == '\0') {
+            return 1;
+        }
+
+        if (!(isdigit(*s1) && isdigit(*s2))) {
+            if (*s1 != *s2) {
+                return (int)*s1 - (int)*s2;
+            }
+            ++s1;
+            ++s2;
+        } else {
+            const char *lim1;
+            const char *lim2;
+            unsigned long n1 = strtoul(s1, &lim1, 10);
+            unsigned long n2 = strtoul(s2, &lim2, 10);
+            if (n1 > n2) {
+                return 1;
+            } else if (n1 < n2) {
+                return -1;
+            }
+            s1 = lim1;
+            s2 = lim2;
+        }
+    }
+}
+
+/**
  * Comparison function for direlements
  */
 static int
@@ -100,7 +138,7 @@ direlemcmp(const void *va, const void *vb)
         return a_is_dir ? -1 : 1;
     }
 
-    return strcmp(a->name, b->name);
+    return strnatcmp(a->name, b->name);
 }
 
 /**
