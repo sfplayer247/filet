@@ -76,3 +76,4 @@ To install it you can use `make install`.
 | m   | Mark item as selected             |
 | x   | Delete selected items             |
 | q   | Quit                              |
+| c   | Change directory                  |

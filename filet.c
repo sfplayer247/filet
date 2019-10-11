@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <memory.h>
 
 #include <dirent.h>
 #include <fcntl.h>
@@ -40,7 +41,27 @@
 #define SIGWINCH 28
 #endif /* SIGWINCH */
 
+#define CTRL_KEY(k) ((k) - 0x60)
+
 #define ENT_ALLOC_NUM 64
+#define LINE_READER_INITIAL_SIZE 64
+
+enum key {
+    KEY_LOWEST = 256,
+    KEY_NOKEY,
+    KEY_UP,
+    KEY_DOWN,
+    KEY_RIGHT,
+    KEY_LEFT,
+};
+
+struct buffer {
+    char *start;
+    char *gap;
+    char *post;
+    char *end;
+    int relpos; // assumed to be vaild at all times
+};
 
 struct direlement {
     enum {
@@ -457,36 +478,248 @@ redraw(
  *
  * Acts as a getchar wrapper that transforms arrow keys to hjkl
  */
+
 static int
 getkey(void)
 {
-    int c = getchar();
-    if (c != '\033') {
-        return c;
+    char c[3];
+    int n = read(STDIN_FILENO, c, sizeof(c));
+
+    if (n < 0) {
+        return KEY_NOKEY;
     }
 
-    c = getchar();
-    if (c != '[') {
-        return c;
+    if (n < sizeof(c)) {
+        return c[0];
     }
 
-    c = getchar();
-    switch (c) {
+    if (!(c[0] == '\033' && c[1] == '[')) {
+        return c[0];
+    }
+
+    switch (c[2]) {
     case 'A':
-        return 'k';
-        break;
+        return KEY_UP;
     case 'B':
-        return 'j';
-        break;
+        return KEY_DOWN;
     case 'C':
-        return 'l';
-        break;
+        return KEY_RIGHT;
     case 'D':
-        return 'h';
-        break;
+        return KEY_LEFT;
+    default:
+        return KEY_NOKEY;
+    }
+}
+
+
+// Included from github.com/buffet/bread
+static bool
+buffer_init(struct buffer *b, size_t init_size)
+{
+    b->start = malloc(init_size);
+    if (!b->start) {
+        return false;
     }
 
-    return c;
+    b->gap    = b->start;
+    b->end    = b->start + init_size;
+    b->post   = b->end;
+    b->relpos = 0;
+
+    return true;
+}
+
+static void
+buffer_forwards(struct buffer *b)
+{
+    if (b->post + b->relpos < b->end) {
+        ++b->relpos;
+    }
+}
+
+static void
+buffer_backwards(struct buffer *b)
+{
+    if (b->gap + b->relpos > b->start) {
+        --b->relpos;
+    }
+}
+
+static void
+buffer_move_gap(struct buffer *b)
+{
+    if (b->relpos == 0) {
+        return;
+    }
+
+    if (b->relpos < 0) {
+        b->gap += b->relpos;
+        b->post += b->relpos;
+        memmove(b->post, b->gap, -b->relpos);
+    } else {
+        memmove(b->gap, b->post, b->relpos);
+        b->gap += b->relpos;
+        b->post += b->relpos;
+    }
+
+    b->relpos = 0;
+}
+
+static bool
+buffer_insertch(struct buffer *b, char ch)
+{
+    buffer_move_gap(b);
+
+    if (b->gap == b->post) {
+        size_t newsize = (b->end - b->start) * 2;
+        char *newbuf   = realloc(b->start, newsize);
+
+        if (!newbuf) {
+            return false;
+        }
+
+        b->gap   = newbuf + (b->gap - b->start);
+        b->post  = newbuf + newsize + (b->end - b->post);
+        b->start = newbuf;
+        b->end   = newbuf + newsize;
+    }
+
+    *b->gap++ = ch;
+
+    return true;
+}
+
+static void
+buffer_delete_forwards(struct buffer *b)
+{
+    buffer_move_gap(b);
+
+    if (b->post < b->end) {
+        ++b->post;
+    }
+}
+
+static void
+buffer_delete_backwards(struct buffer *b)
+{
+    buffer_move_gap(b);
+
+    if (b->gap > b->start) {
+        --b->gap;
+    }
+}
+
+char *
+read_line(const char *prompt)
+{
+    printf("\033[?25h" // Show cursor
+        "%s", prompt);
+    fflush(stdout);
+
+    size_t prompt_len = 0;
+    bool counting     = true;
+
+    for (const char *c = prompt; *c; ++c) {
+        if (*c == '\001') {
+            counting = false;
+        } else if (*c == '\002') {
+            counting = true;
+        } else {
+            if (counting) {
+                ++prompt_len;
+            }
+        }
+    }
+
+    struct buffer buffer;
+    if (!buffer_init(&buffer, LINE_READER_INITIAL_SIZE)) {
+        return NULL;
+    }
+
+    for (;;) {
+        int k = getkey();
+
+        if (k == '\n') {
+            break;
+        }
+
+        switch (k) {
+        case KEY_NOKEY:
+            // EMPTY
+            break;
+        case CTRL_KEY('b'):
+        case KEY_LEFT:
+            buffer_backwards(&buffer);
+            break;
+        case CTRL_KEY('f'):
+        case KEY_RIGHT:
+            buffer_forwards(&buffer);
+            break;
+        case KEY_UP:
+        case KEY_DOWN:
+            // TODO: handle
+            break;
+        case CTRL_KEY('a'):
+            buffer.relpos = buffer.start - buffer.gap - buffer.relpos;
+            break;
+        case CTRL_KEY('e'):
+            buffer.relpos = buffer.end - buffer.post;
+            break;
+        case CTRL_KEY('d'):
+            buffer_delete_forwards(&buffer);
+            break;
+        case CTRL_KEY('u'):
+            buffer.gap  = buffer.start;
+            buffer.post = buffer.end;
+            break;
+        case CTRL_KEY('h'):
+        case '\x7f':
+            buffer_delete_backwards(&buffer);
+            break;
+        default:
+            if (!buffer_insertch(&buffer, k)) {
+                free(buffer.start);
+                return NULL;
+            }
+        }
+
+        size_t postsize = buffer.end - buffer.post;
+
+        printf(
+            "\r\033[%luC\033[K%.*s%.*s",
+            prompt_len,
+            (int)(buffer.gap - buffer.start),
+            buffer.start,
+            (int)postsize,
+            buffer.post);
+
+        if (postsize - buffer.relpos > 0) {
+            printf("\033[%luD", postsize - buffer.relpos);
+        }
+        fflush(stdout);
+    }
+
+    size_t presize  = buffer.gap - buffer.start;
+    size_t postsize = buffer.end - buffer.post;
+    size_t size     = presize + postsize;
+
+    char *line = malloc(size + 1);
+    if (!line) {
+        free(buffer.start);
+        return NULL;
+    }
+
+    memcpy(line, buffer.start, presize);
+    memcpy(line + presize, buffer.post, postsize);
+
+    line[size] = '\0';
+
+    printf(
+            "\033[?25l" // Hide cursor
+            "\033[2K" // Clear line
+    );
+    g_needs_redraw = true;
+    return line;
 }
 
 int
@@ -652,6 +885,7 @@ main(int argc, char **argv)
 
         switch (k) {
         case 'h':
+        case KEY_LEFT:
             parent_dir(path);
             fetch_dir = true;
             break;
@@ -689,6 +923,7 @@ main(int argc, char **argv)
 
         switch (k) {
         case 'j':
+        case KEY_DOWN:
             if (sel < n - 1) {
                 draw_line(&ents[sel], false);
                 printf("\r\n");
@@ -702,6 +937,7 @@ main(int argc, char **argv)
             }
             break;
         case 'k':
+        case KEY_UP:
             if (sel > 0) {
                 draw_line(&ents[sel], false);
                 if (y == 0) {
@@ -715,8 +951,9 @@ main(int argc, char **argv)
                 printf("\r");
             }
             break;
-        case '\n': // FALLTHROUGH
         case 'l':
+        case '\n':
+        case KEY_RIGHT:
             if (ents[sel].type == TYPE_DIR ||
                 ents[sel].type == TYPE_SYML_TO_DIR) {
                 // don't append to /
@@ -731,6 +968,31 @@ main(int argc, char **argv)
                 }
                 fetch_dir = true;
             }
+            break;
+        case 'c':
+            printf("\033[%i;0H", row);
+            char *target = read_line("cd ");
+            char *dirname = NULL;
+
+            if (target[0] == '~') { 
+                target++;
+                size_t dirname_size = strlen(home) + strlen(target) + 2;
+                dirname = malloc(dirname_size);
+                strcpy(dirname, home);
+                strcat(dirname, target);
+            } else {
+                dirname = target;
+            }
+            if (!opendir(dirname)) {
+                printf("\033[%i;0H" // Return to start of line
+                    "Invalid Path", row);
+                fflush(stdout);
+                getchar();
+            } else {
+                strcpy(path, dirname);
+                fetch_dir = true;
+            }
+            free(dirname);
             break;
         case 'g':
             if (sel - y == 0) {
